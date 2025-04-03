@@ -400,3 +400,105 @@ class MatchingAlgorithms:
             try_match(edge)
 
         return MLAM
+
+    @staticmethod
+    def suitor(graph_input):
+        """
+        Suitor算法实现
+        :param graph_input: 字典嵌套格式的图，如 {u: {v: weight, ...}, ...}
+        :return: 匹配边集合，格式为 {(u, v), ...}
+        """
+        graph = copy.deepcopy(graph_input)
+        suitor = {u: None for u in graph}
+        suitor_weight = {u: 0 for u in graph}
+        queue = list(graph.keys())
+        
+        while queue:
+            u = queue.pop(0)
+            if suitor[u] is None:  # 仅处理未匹配顶点
+                # 找到u的最优未匹配邻居
+                max_weight = -1
+                best_v = None
+                for v in graph[u]:
+                    if suitor[v] is None and graph[u][v] > max_weight:
+                        max_weight = graph[u][v]
+                        best_v = v
+                    elif suitor[v] is not None and graph[u][v] > suitor_weight[v]:
+                        max_weight = graph[u][v]
+                        best_v = v
+                
+                if best_v is not None:
+                    # 比较当前suitor的权重
+                    if max_weight > suitor_weight[best_v]:
+                        # 替换旧suitor
+                        old_suitor = suitor[best_v]
+                        suitor[best_v] = u
+                        suitor_weight[best_v] = max_weight
+                        # 将旧suitor重新入队
+                        if old_suitor is not None:
+                            suitor[old_suitor] = None
+                            queue.append(old_suitor)
+        
+        # 构建匹配结果
+        matching = set()
+        for v in suitor:
+            u = suitor[v]
+            if u is not None and (v, u) not in matching and (u, v) not in matching:
+                matching.add((u, v) if u < v else (v, u))
+        
+        return matching
+    
+    @staticmethod
+    def dynamic_programming_path_growth(graph_input):
+        """改进的路径增长法（带动态规划与极大匹配扩展）"""
+        graph = copy.deepcopy(graph_input)
+        M_final = set()
+        
+        while any(graph.values()):
+            # 找到任意度至少为1的顶点
+            for x in graph:
+                if graph[x]:
+                    break
+            
+            path = []
+            while graph[x]:
+                # 找到 x 关联的最大权重边
+                y, max_weight = max(graph[x].items(), key=lambda item: item[1])
+                path.append((x, y, max_weight))
+                del graph[x][y]
+                if y in graph:
+                    del graph[y][x]
+                x = y
+            
+            if path:
+                k = len(path)
+                dp = [0] * (k + 1)
+                use_prev = [False] * (k + 1)
+                dp[1] = path[0][2]
+                use_prev[1] = True
+                
+                for i in range(2, k + 1):
+                    if dp[i - 1] >= dp[i - 2] + path[i - 1][2]:
+                        dp[i] = dp[i - 1]
+                        use_prev[i] = False
+                    else:
+                        dp[i] = dp[i - 2] + path[i - 1][2]
+                        use_prev[i] = True
+                
+                # 回溯以确定实际选择的边
+                i = k
+                while i > 0:
+                    if use_prev[i]:
+                        M_final.add((path[i - 1][0], path[i - 1][1]))
+                        i -= 2
+                    else:
+                        i -= 1
+        
+        # 添加不与当前匹配相邻的孤立边
+        for u in graph:
+            for v, w in graph[u].items():
+                if (u, v) not in M_final and (v, u) not in M_final:
+                    M_final.add((u, v))
+                    break
+        
+        return M_final

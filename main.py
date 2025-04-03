@@ -12,7 +12,7 @@ def run_algorithm(func, graph):
 
 if __name__ == "__main__":
     start = time.time()
-    WG = gg.generate_random_weighted_graph(1000, 0.9, (1, 50000))
+    WG = gg.generate_random_weighted_graph(100, 0.9, (1, 10))
     elapsed = time.time() - start
     print(f"随机图生成时间：{elapsed:.4f}秒")
     #gg.print_graph(WG)
@@ -25,7 +25,7 @@ if __name__ == "__main__":
     print(f"路径增长算法运行时间：{t2:.4f}秒")
     print("最大匹配权重：", w2)
 
-    w3, t3 = run_algorithm(mwma.improved_path_growing_algorithm, WG)
+    w3, t3 = run_algorithm(mwma.dynamic_programming_path_growth, WG)
     print(f"优化后的路径增长算法运行时间：{t3:.4f}秒")
     print("最大匹配权重：", w3)
 
@@ -33,6 +33,6 @@ if __name__ == "__main__":
     print(f"preis_LAM算法运行时间：{t4:.4f}秒")
     print("最大匹配权重：", w4)
 
-    w5, t5 = run_algorithm(mwma.improved_path_growing_algorithm_optimized, WG)
-    print(f"可并行路径增长算法运行时间：{t5:.4f}秒")
+    w5, t5 = run_algorithm(mwma.suitor, WG)
+    print(f"s算法运行时间：{t5:.4f}秒")
     print("最大匹配权重：", w5)
