@@ -1,50 +1,38 @@
 import time
 
-from algorithms import MatchingAlgorithms as ma
+from MWMalgorithms import MatchingAlgorithms as mwma
 from graph_generator import GraphGenerator as gg
-import preis_LAM
+
+def run_algorithm(func, graph):
+    start = time.time()
+    mp = func(graph)
+    elapsed = time.time() - start
+    weight = mwma.calculate_weight(mp, graph)
+    return weight, elapsed
 
 if __name__ == "__main__":
-    """
-    B = gg.generate_random_bipartite(3, 2, 0.5)
-    gg.print_graph(B)
-    
-    WB = gg.generate_random_weighted_bipartite(5, 10, 0.5, (1, 1000))
-    gg.print_graph(WB)
-
-    G = gg.generate_random_graph(5, 0.4)
-    gg.print_graph(G)
-    """
     start = time.time()
-    WG = gg.generate_random_weighted_graph(1000, 0.5, (1, 50))
+    WG = gg.generate_random_weighted_graph(1000, 0.9, (1, 50000))
     elapsed = time.time() - start
     print(f"随机图生成时间：{elapsed:.4f}秒")
     #gg.print_graph(WG)
 
-    ## 贪心算法测试
-    #start = time.time()
-    #matching = ma.greedy_matching(WG)
-    #elapsed = time.time() - start
-    #print(f"贪心算法运行时间：{elapsed:.4f}秒")
-    #print("贪心算法找到的最大匹配权重：", ma.calculate_weight(matching, WG))
+    w1, t1 = run_algorithm(mwma.greedy_matching, WG)
+    print(f"贪心算法运行时间：{t1:.4f}秒")
+    print("最大匹配权重：", w1)
 
-    ## 路径增长算法测试
-    start = time.time()
-    matching_path = ma.path_growing_algorithm(WG)
-    elapsed = time.time() - start
-    print(f"运行时间：{elapsed:.4f}秒")
-    print("最大匹配权重：", ma.calculate_weight(matching_path, WG))
+    w2, t2 = run_algorithm(mwma.path_growing_algorithm, WG)
+    print(f"路径增长算法运行时间：{t2:.4f}秒")
+    print("最大匹配权重：", w2)
 
-    ## 改进的路径增长算法测试
-    #start = time.time()
-    #matching_path_improved = ma.greedy_matching(WG)
-    #elapsed = time.time() - start
-    #print(f"运行时间：{elapsed:.4f}秒")
-    #print("最大匹配权重：", ma.calculate_weight(matching_path_improved, WG))
-    
-    ## Preis算法测试
-    start = time.time()
-    match_path_LAM = preis_LAM.lam_max_weighted_matching(WG)
-    elapsed = time.time() - start
-    print(f"Preis算法运行时间：{elapsed:.4f}秒")
-    print("最大匹配权重：", ma.calculate_weight(match_path_LAM, WG))
+    w3, t3 = run_algorithm(mwma.improved_path_growing_algorithm, WG)
+    print(f"优化后的路径增长算法运行时间：{t3:.4f}秒")
+    print("最大匹配权重：", w3)
+
+    w4, t4 = run_algorithm(mwma.lam_max_weighted_matching, WG)
+    print(f"preis_LAM算法运行时间：{t4:.4f}秒")
+    print("最大匹配权重：", w4)
+
+    w5, t5 = run_algorithm(mwma.improved_path_growing_algorithm_optimized, WG)
+    print(f"可并行路径增长算法运行时间：{t5:.4f}秒")
+    print("最大匹配权重：", w5)
