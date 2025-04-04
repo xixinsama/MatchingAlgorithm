@@ -61,7 +61,70 @@ class MatchingAlgorithms:
 
     @staticmethod
     def path_growing_algorithm(graph_input):
-        # Create a deep copy of the graph to avoid modifying the original
+        # 使用深拷贝避免修改原图
+        graph = copy.deepcopy(graph_input)
+        M1 = set()
+        M2 = set()
+        weight_m1 = 0
+        weight_m2 = 0
+        i = 1
+        
+        # 使用集合维护有效顶点（存在边的顶点）
+        active_vertices = {v for v in graph if graph[v]}
+        
+        def remove_vertex(x):
+            """移除顶点并维护active_vertices集合"""
+            if x not in graph:
+                return
+            
+            # 删除x的所有邻边
+            for y in list(graph[x].keys()):
+                if y in graph:
+                    del graph[y][x]
+                    # 更新有效顶点集合
+                    if not graph[y]:
+                        active_vertices.discard(y)
+            
+            # 删除顶点本身
+            del graph[x]
+            active_vertices.discard(x)
+        
+        while active_vertices:
+            # 任选一个有效顶点（快速获取）
+            x = next(iter(active_vertices))
+            
+            # 严格遵循伪代码的双层循环结构
+            while True:
+                # 检查顶点有效性
+                if x not in graph or not graph[x]:
+                    break
+                
+                # 获取最大权重边
+                y = max(graph[x], key=lambda k: graph[x][k], default=None)
+                if not y:
+                    break
+                
+                # 添加边到当前匹配集
+                edge = tuple(sorted((x, y)))
+                if i == 1:
+                    M1.add(edge)
+                    weight_m1 += graph_input[x][y]  # 从原始图获取权重
+                else:
+                    M2.add(edge)
+                    weight_m2 += graph_input[x][y]
+                
+                # 切换匹配集（严格对应伪代码i := 3 - i）
+                i = 3 - i
+                
+                # 删除当前顶点并移动指针
+                remove_vertex(x)
+                x = y  # 移动到下一个顶点
+        
+        return M1 if weight_m1 >= weight_m2 else M2
+
+
+        """
+    # Create a deep copy of the graph to avoid modifying the original
         graph = {}
         for v in graph_input:
             graph[v] = {}
@@ -117,187 +180,8 @@ class MatchingAlgorithms:
         # Return the matching with the higher weight
         weight_m1 = MatchingAlgorithms.calculate_weight(M1, graph_input)
         weight_m2 = MatchingAlgorithms.calculate_weight(M2, graph_input)
-        return M1 if weight_m1 >= weight_m2 else M2
-
-    @staticmethod
-    def improved_path_growing_algorithm(graph_input):
-        """改进的路径增长算法实现（返回边集合）"""
-        temp_graph = copy.deepcopy(graph_input)
-        M_final = set()
-        matched_nodes = set()
-
-        # 步骤1：路径生成和动态规划
-        while True:
-            # 寻找仍有边的起始顶点
-            start = None
-            for node in temp_graph:
-                if temp_graph[node]:
-                    start = node
-                    break
-            if start is None:
-                break
-
-            # 构建路径（记录边和权重）
-            path = []
-            current = start
-            while True:
-                if current not in temp_graph or not temp_graph[current]:
-                    break
-                
-                # 获取最大权重边
-                max_neighbor, max_weight = None, -float('inf')
-                for neighbor, weight in temp_graph[current].items():
-                    if weight > max_weight:
-                        max_weight = weight
-                        max_neighbor = neighbor
-                
-                if max_neighbor is None:
-                    break
-
-                # 记录边（带权重用于动态规划）
-                path.append((current, max_neighbor, max_weight))
-                
-                # 删除当前顶点及其边（保持无向图特性）
-                del temp_graph[current]
-                if max_neighbor in temp_graph:
-                    del temp_graph[max_neighbor][current]
-                
-                current = max_neighbor
-
-            # 动态规划处理路径
-            if path:
-                n = len(path)
-                dp = [0] * (n + 1)
-                selected = [[] for _ in range(n + 1)]
-                
-                # 初始化第一条边
-                if n >= 1:
-                    dp[1] = path[0][2]
-                    selected[1] = [path[0]]
-
-                # 动态规划递推
-                for i in range(2, n+1):
-                    option1 = dp[i-1]
-                    option2 = dp[i-2] + path[i-1][2]
-                    
-                    if option1 > option2:
-                        dp[i] = option1
-                        selected[i] = selected[i-1]
-                    else:
-                        dp[i] = option2
-                        selected[i] = selected[i-2] + [path[i-1]]
-
-                # 添加最优边到匹配（仅记录节点对）
-                for edge in selected[n]:
-                    u, v, _ = edge
-                    if u not in matched_nodes and v not in matched_nodes:
-                        M_final.add((u, v))
-                        matched_nodes.update([u, v])
-
-        # 步骤2：扩展为极大匹配
-        # 收集所有未处理的边（按权重降序）
-        remaining_edges = []
-        for u in graph_input:
-            for v in graph_input[u]:
-                if u < v and (u, v) not in M_final and (v, u) not in M_final:
-                    remaining_edges.append((u, v))
-        
-        # 按权重降序排序
-        remaining_edges.sort(key=lambda e: graph_input[e[0]][e[1]], reverse=True)
-
-        # 添加不冲突的边
-        for u, v in remaining_edges:
-            if u not in matched_nodes and v not in matched_nodes:
-                M_final.add((u, v))
-                matched_nodes.update([u, v])
-
-        return M_final
-    
-    @staticmethod
-    def improved_path_growing_algorithm_optimized(graph_input):
-        """优化后的改进路径增长算法（支持并行化）"""
-        # 轻量级图副本（避免深拷贝）
-        temp_graph = {u: dict(neighbors) for u, neighbors in graph_input.items()}
-        M_final = set()
-        matched_nodes = set()
-        active_nodes = {u for u in temp_graph if temp_graph[u]}
-        deleted_edges = set()  # 记录已删除边
-
-        # 处理主循环
-        while active_nodes:
-            start = next(iter(active_nodes), None)
-            if start not in temp_graph or not temp_graph[start]:
-                active_nodes.discard(start)
-                continue
-
-            # 路径生成
-            path = []
-            current = start
-            while True:
-                if current not in temp_graph or not temp_graph[current]:
-                    break
-                max_neighbor, max_weight = max(
-                    temp_graph[current].items(), 
-                    key=lambda x: x[1], 
-                    default=(None, -float('inf'))
-                )
-                if max_neighbor is None:
-                    break
-
-                path.append((current, max_neighbor, max_weight))
-                deleted_edges.add((current, max_neighbor))
-                deleted_edges.add((max_neighbor, current))
-
-                # 动态删除边（更新active_nodes）
-                del temp_graph[current]
-                if max_neighbor in temp_graph:
-                    del temp_graph[max_neighbor][current]
-                    if not temp_graph[max_neighbor]:
-                        del temp_graph[max_neighbor]
-                current = max_neighbor
-                active_nodes.discard(current)
-
-            # 优化动态规划（滚动数组）
-            if path:
-                n = len(path)
-                prev2, prev1 = 0, path[0][2] if n >=1 else 0
-                selected_prev2, selected_prev1 = [], [path[0]] if n >=1 else []
-
-                for i in range(2, n+1):
-                    current_edge = path[i-1]
-                    option1 = prev1
-                    option2 = prev2 + current_edge[2]
-
-                    if option1 > option2:
-                        current_selected = selected_prev1
-                        current_max = option1
-                    else:
-                        current_selected = selected_prev2 + [current_edge]
-                        current_max = option2
-
-                    prev2, prev1 = prev1, current_max
-                    selected_prev2, selected_prev1 = selected_prev1, current_selected
-
-                # 添加最优边
-                for edge in selected_prev1:
-                    u, v, _ = edge
-                    if u not in matched_nodes and v not in matched_nodes:
-                        M_final.add((u, v))
-                        matched_nodes.update([u, v])
-
-        # 极大匹配扩展（直接使用预存剩余边）
-        remaining_edges = [
-            (u, v) for u in graph_input for v in graph_input[u]
-            if u < v and (u, v) not in deleted_edges
-        ]
-        remaining_edges.sort(key=lambda e: graph_input[e[0]][e[1]], reverse=True)
-
-        for u, v in remaining_edges:
-            if u not in matched_nodes and v not in matched_nodes:
-                M_final.add((u, v))
-                matched_nodes.update([u, v])
-
-        return M_final
+        return M1 if weight_m1 >= weight_m2 else M2 
+    """
 
     @staticmethod
     def lam_max_weighted_matching(graph_input):
