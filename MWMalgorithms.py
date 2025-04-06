@@ -1,7 +1,6 @@
 import copy
 import heapq
-from collections import defaultdict
-from concurrent.futures import ThreadPoolExecutor
+from collections import defaultdict, deque
 
 class MatchingAlgorithms:
     @staticmethod
@@ -284,105 +283,165 @@ class MatchingAlgorithms:
             try_match(edge)
 
         return MLAM
-
-    @staticmethod
-    def suitor(graph_input):
-        """
-        Suitor算法实现
-        :param graph_input: 字典嵌套格式的图，如 {u: {v: weight, ...}, ...}
-        :return: 匹配边集合，格式为 {(u, v), ...}
-        """
-        graph = copy.deepcopy(graph_input)
-        suitor = {u: None for u in graph}
-        suitor_weight = {u: 0 for u in graph}
-        queue = list(graph.keys())
-        
-        while queue:
-            u = queue.pop(0)
-            if suitor[u] is None:  # 仅处理未匹配顶点
-                # 找到u的最优未匹配邻居
-                max_weight = -1
-                best_v = None
-                for v in graph[u]:
-                    if suitor[v] is None and graph[u][v] > max_weight:
-                        max_weight = graph[u][v]
-                        best_v = v
-                    elif suitor[v] is not None and graph[u][v] > suitor_weight[v]:
-                        max_weight = graph[u][v]
-                        best_v = v
-                
-                if best_v is not None:
-                    # 比较当前suitor的权重
-                    if max_weight > suitor_weight[best_v]:
-                        # 替换旧suitor
-                        old_suitor = suitor[best_v]
-                        suitor[best_v] = u
-                        suitor_weight[best_v] = max_weight
-                        # 将旧suitor重新入队
-                        if old_suitor is not None:
-                            suitor[old_suitor] = None
-                            queue.append(old_suitor)
-        
-        # 构建匹配结果
-        matching = set()
-        for v in suitor:
-            u = suitor[v]
-            if u is not None and (v, u) not in matching and (u, v) not in matching:
-                matching.add((u, v) if u < v else (v, u))
-        
-        return matching
     
     @staticmethod
     def dynamic_programming_path_growth(graph_input):
-        """改进的路径增长法（带动态规划与极大匹配扩展）"""
         graph = copy.deepcopy(graph_input)
         M_final = set()
-        
-        while any(graph.values()):
-            # 找到任意度至少为1的顶点
-            for x in graph:
-                if graph[x]:
+
+        def is_graph_empty(g):
+            for u in g:
+                if g[u]:
+                    return False
+            return True
+
+        def select_vertex_with_degree_at_least_one(g):
+            for u in g:
+                if g[u]:
+                    return u
+            return None
+
+        def remove_edges_connected_to(g, u):
+            if u in g:
+                for v in list(g[u].keys()):
+                    if v in g and u in g[v]:
+                        del g[v][u]
+                del g[u]
+
+        while not is_graph_empty(graph):
+            x = select_vertex_with_degree_at_least_one(graph)
+            if x is None:
+                break
+            P = []
+            while True:
+                max_weight = -float('inf')
+                max_v = None
+                current_edges = graph.get(x, {})
+                for v in current_edges:
+                    if current_edges[v] > max_weight:
+                        max_weight = current_edges[v]
+                        max_v = v
+                if max_v is None:
                     break
-            
-            path = []
-            while graph[x]:
-                # 找到 x 关联的最大权重边
-                y, max_weight = max(graph[x].items(), key=lambda item: item[1])
-                path.append((x, y, max_weight))
-                del graph[x][y]
-                if y in graph:
-                    del graph[y][x]
-                x = y
-            
-            if path:
-                k = len(path)
-                dp = [0] * (k + 1)
-                use_prev = [False] * (k + 1)
-                dp[1] = path[0][2]
-                use_prev[1] = True
-                
-                for i in range(2, k + 1):
-                    if dp[i - 1] >= dp[i - 2] + path[i - 1][2]:
-                        dp[i] = dp[i - 1]
-                        use_prev[i] = False
+                u_sorted = min(x, max_v)
+                v_sorted = max(x, max_v)
+                P.append((u_sorted, v_sorted, max_weight))
+                remove_edges_connected_to(graph, x)
+                x = max_v
+
+            if P:
+                k = len(P)
+                take = [False] * k
+
+                # 动态规划初始化
+                dp_prev_prev = 0  # dp[0]
+                if k >= 1:
+                    dp_prev = P[0][2]
+                    take[0] = True
+                else:
+                    dp_prev = 0
+
+                for i in range(1, k):
+                    current_weight = P[i][2]
+                    if dp_prev_prev + current_weight > dp_prev:
+                        new_dp = dp_prev_prev + current_weight
+                        take[i] = True
                     else:
-                        dp[i] = dp[i - 2] + path[i - 1][2]
-                        use_prev[i] = True
-                
-                # 回溯以确定实际选择的边
-                i = k
-                while i > 0:
-                    if use_prev[i]:
-                        M_final.add((path[i - 1][0], path[i - 1][1]))
+                        new_dp = dp_prev
+                        take[i] = False
+                    dp_prev_prev, dp_prev = dp_prev, new_dp
+
+                # 回溯选中的边
+                selected_edges = []
+                i = k - 1
+                while i >= 0:
+                    if take[i]:
+                        selected_edges.append(P[i])
                         i -= 2
                     else:
                         i -= 1
-        
-        # 添加不与当前匹配相邻的孤立边
-        for u in graph:
-            for v, w in graph[u].items():
-                if (u, v) not in M_final and (v, u) not in M_final:
+
+                # 更新匹配并删除相关边
+                for edge in selected_edges:
+                    u, v, _ = edge
                     M_final.add((u, v))
-                    break
-        
+                    remove_edges_connected_to(graph, u)
+                    remove_edges_connected_to(graph, v)
+
+        # 处理剩余边
+        for u in graph:
+            for v in graph[u]:
+                if u < v:
+                    conflict = False
+                    for (a, b) in M_final:
+                        if u == a or u == b or v == a or v == b:
+                            conflict = True
+                            break
+                    if not conflict:
+                        M_final.add((u, v))
+
         return M_final
+    
+    @staticmethod
+    def suitor_matching(graph_input):
+        """SUITOR算法实现最大带权匹配"""
+        graph = copy.deepcopy(graph_input)
+        nodes = list(graph.keys())
+        
+        # 初始化数据结构
+        suitor = {u: None for u in nodes}
+        ws = {u: 0.0 for u in nodes}  # 记录每个顶点当前匹配边的权重
+        
+        # 预处理：按权重降序排列邻居列表（优化性能）
+        for u in graph:
+            # 添加顶点ID作为次要排序键（解决权重相等情况）
+            neighbors = sorted(graph[u].items(), 
+                            key=lambda x: (-x[1], x[0]))
+            graph[u] = dict(neighbors)
+        
+        for u in nodes:
+            current = u
+            done = False
+            
+            while not done:
+                current_partner = suitor[current]
+                heaviest = ws[current]
+                best_partner = None
+                best_weight = 0
+                
+                # 遍历当前顶点的所有邻居（已按权重降序排列）
+                for v, weight in graph[current].items():
+                    # 检查是否满足两个条件（权重严格大于）
+                    if weight > ws[v] and weight > best_weight:
+                        best_partner = v
+                        best_weight = weight
+                        # 不立即break，继续寻找可能更优的（因ws动态变化）
+                
+                # 更新匹配关系
+                if best_partner is not None:
+                    displaced = suitor.get(best_partner)
+                    
+                    # 执行匹配更新
+                    suitor[best_partner] = current
+                    ws[best_partner] = best_weight
+                    
+                    if displaced is not None:
+                        current = displaced  # 处理被替换的顶点
+                        done = False
+                    else:
+                        done = True
+                else:
+                    done = True
+        
+        # 生成匹配集合（修正后的逻辑）
+        matching = set()
+        used = set()
+        
+        for u in nodes:
+            if u not in used:
+                partner = suitor[u]
+                if partner is not None and suitor.get(partner) == u:
+                    matching.add(tuple(sorted((u, partner))))
+                    used.update({u, partner})
+        
+        return matching
